@@ -13,3 +13,9 @@ venv/
 # misc
 .DS_Store
 .gstack/
+.claude/
+
+# next.js dev artifacts (also gitignored by web/.gitignore, but defensive)
+web/node_modules/
+web/.next/
+web/out/
