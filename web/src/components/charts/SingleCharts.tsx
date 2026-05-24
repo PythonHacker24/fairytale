@@ -104,11 +104,11 @@ export function DistributionSingle({ data }: { data: DailyRecord[] }) {
   ];
 
   const annotations = [
-    { x: mu, y: 1.0, yref: "paper", text: `μ = ${mu.toFixed(3)}%`, showarrow: false, font: { color: COLORS.warn, size: 12 }, xanchor: "left" as const, yshift: -10 },
-    { x: mu - sigma, y: 0, yref: "paper", text: `−1σ`, showarrow: false, font: { color: COLORS.textDim, size: 10 }, xanchor: "right" as const, yshift: 14 },
-    { x: mu + sigma, y: 0, yref: "paper", text: `+1σ`, showarrow: false, font: { color: COLORS.textDim, size: 10 }, xanchor: "left" as const, yshift: 14 },
-    { x: mu - 2 * sigma, y: 0, yref: "paper", text: `−2σ`, showarrow: false, font: { color: COLORS.textFaint, size: 10 }, xanchor: "right" as const, yshift: 14 },
-    { x: mu + 2 * sigma, y: 0, yref: "paper", text: `+2σ`, showarrow: false, font: { color: COLORS.textFaint, size: 10 }, xanchor: "left" as const, yshift: 14 },
+    { x: mu, y: 1.0, yref: "paper" as const, text: `μ = ${mu.toFixed(3)}%`, showarrow: false, font: { color: COLORS.warn, size: 12 }, xanchor: "left" as const, yshift: -10 },
+    { x: mu - sigma, y: 0, yref: "paper" as const, text: `−1σ`, showarrow: false, font: { color: COLORS.textDim, size: 10 }, xanchor: "right" as const, yshift: 14 },
+    { x: mu + sigma, y: 0, yref: "paper" as const, text: `+1σ`, showarrow: false, font: { color: COLORS.textDim, size: 10 }, xanchor: "left" as const, yshift: 14 },
+    { x: mu - 2 * sigma, y: 0, yref: "paper" as const, text: `−2σ`, showarrow: false, font: { color: COLORS.textFaint, size: 10 }, xanchor: "right" as const, yshift: 14 },
+    { x: mu + 2 * sigma, y: 0, yref: "paper" as const, text: `+2σ`, showarrow: false, font: { color: COLORS.textFaint, size: 10 }, xanchor: "left" as const, yshift: 14 },
   ];
 
   return (
@@ -121,7 +121,8 @@ export function DistributionSingle({ data }: { data: DailyRecord[] }) {
       <div className="flex-1 min-h-0">
         <Plot
           data={[
-            { type: "histogram", x: returns, nbinsx: N_BINS, marker: { color: ACCENT, opacity: 0.6 }, name: "Actual", hovertemplate: "Return: %{x:.2f}%<br>Days: %{y}<extra></extra>" },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            { type: "histogram", x: returns, nbinsx: N_BINS, marker: { color: ACCENT, opacity: 0.6 }, name: "Actual", hovertemplate: "Return: %{x:.2f}%<br>Days: %{y}<extra></extra>" } as any,
             { type: "scatter", mode: "lines", x: curveX, y: curveY, name: "Normal fit", line: { color: ACCENT_LIGHT, width: 2.5 }, hovertemplate: "Return: %{x:.3f}%<br>Expected: %{y:.1f}<extra></extra>" },
           ]}
           layout={{
@@ -174,6 +175,7 @@ export function HeatmapSingle({ data }: { data: DailyRecord[] }) {
   return (
     <Plot
       data={[
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {
           type: "heatmap",
           z,
@@ -191,7 +193,7 @@ export function HeatmapSingle({ data }: { data: DailyRecord[] }) {
           zmax: 3,
           colorbar: { title: { text: "Avg %" }, ticksuffix: "%", tickfont: { size: 11, color: COLORS.textDim }, outlinewidth: 0 },
           hovertemplate: "<b>%{y} %{x}</b><br>Avg daily return: %{z:.3f}%<extra></extra>",
-        },
+        } as any,
       ]}
       layout={{
         ...plotlyBase,

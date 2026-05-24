@@ -102,8 +102,10 @@ export function CompareDistribution({ a, b }: { a: SeriesIn; b: SeriesIn }) {
   return (
     <Plot
       data={[
-        { type: "histogram", x: aS.returns, nbinsx: N_BINS, marker: { color: a.color, opacity: 0.5 }, name: `${a.name}`, hovertemplate: "Return: %{x:.2f}%<br>Days: %{y}<extra></extra>" },
-        { type: "histogram", x: bS.returns, nbinsx: N_BINS, marker: { color: b.color, opacity: 0.5 }, name: `${b.name}`, hovertemplate: "Return: %{x:.2f}%<br>Days: %{y}<extra></extra>" },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { type: "histogram", x: aS.returns, nbinsx: N_BINS, marker: { color: a.color, opacity: 0.5 }, name: `${a.name}`, hovertemplate: "Return: %{x:.2f}%<br>Days: %{y}<extra></extra>" } as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { type: "histogram", x: bS.returns, nbinsx: N_BINS, marker: { color: b.color, opacity: 0.5 }, name: `${b.name}`, hovertemplate: "Return: %{x:.2f}%<br>Days: %{y}<extra></extra>" } as any,
         { type: "scatter", mode: "lines", x: aCurve.cx, y: aCurve.cy, name: `${a.name} fit`, line: { color: a.light, width: 2 } },
         { type: "scatter", mode: "lines", x: bCurve.cx, y: bCurve.cy, name: `${b.name} fit`, line: { color: b.light, width: 2 } },
       ]}

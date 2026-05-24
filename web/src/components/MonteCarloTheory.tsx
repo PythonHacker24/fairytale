@@ -37,8 +37,8 @@ function Inline({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Strong({ children }: { children: React.ReactNode }) {
-  return <span className="text-text font-medium">{children}</span>;
+function Strong({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <span className={`text-text font-medium ${className ?? ""}`}>{children}</span>;
 }
 
 export default function MonteCarloTheory() {

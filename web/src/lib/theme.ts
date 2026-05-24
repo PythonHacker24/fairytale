@@ -1,3 +1,5 @@
+import type { Config, Layout } from "plotly.js";
+
 export const COLORS = {
   bg: "#000000",
   panel: "#0a0a0a",
@@ -17,7 +19,7 @@ export const COLORS = {
   warn: "#facc15",
 } as const;
 
-export const plotlyBase = {
+export const plotlyBase: Partial<Layout> = {
   paper_bgcolor: COLORS.panel,
   plot_bgcolor: COLORS.panel,
   font: { color: COLORS.text, family: "var(--font-sans), system-ui, sans-serif", size: 12 },
@@ -38,7 +40,7 @@ export const plotlyBase = {
   hoverlabel: { bgcolor: COLORS.panel2, bordercolor: COLORS.borderStrong, font: { color: COLORS.text, size: 12 } },
 };
 
-export const plotlyConfig = {
+export const plotlyConfig: Partial<Config> = {
   displaylogo: false,
   responsive: true,
   modeBarButtonsToRemove: ["lasso2d", "select2d"],

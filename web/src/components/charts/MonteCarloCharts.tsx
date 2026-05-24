@@ -134,6 +134,7 @@ export function FinalDistribution({
   return (
     <Plot
       data={[
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {
           type: "histogram",
           x: finals,
@@ -141,7 +142,7 @@ export function FinalDistribution({
           marker: { color: COLORS.nifty, opacity: 0.65 },
           name: "Final price",
           hovertemplate: `Final: ${prefix}%{x:,.2f}<br>Paths: %{y}<extra></extra>`,
-        },
+        } as any,
       ]}
       layout={{
         ...plotlyBase,
