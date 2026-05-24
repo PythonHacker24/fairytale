@@ -21,6 +21,11 @@ heavy lifting:
 | **Sector Heatmap**     | Finviz-style treemap of returns, grouped by sector       |
 | **Correlation Matrix** | Pairwise Pearson correlation across all 50 assets        |
 
+Plus a Python SDK (`fairytale/`) for backtesting trading strategies and AI
+agents against the same data. Imports anywhere in the repo as
+`from fairytale import Market, Agent, Backtest, Order`. See
+`fairytale/AGENTS.md` for the full reference.
+
 ## Architecture
 
 ```
@@ -29,6 +34,11 @@ heavy lifting:
                  build_manifest.py        prices_enriched view,
                  migrate_to_supabase.py   asset_returns view,
                                           asset_correlations fn
+                                              │
+                                              ▼
+                                          Python SDK (fairytale/)
+                                          point-in-time queries,
+                                          portfolios, agents, backtests
 ```
 
 Three storage layers, each owning one job:
@@ -109,12 +119,45 @@ npm run dev
 
 Visit http://localhost:3000.
 
+### 5. Use the SDK
+
+Install the Python package once:
+
+```
+poetry install
+```
+
+Then import it from anywhere in this repo:
+
+```python
+from decimal import Decimal
+from fairytale import Market, Agent, Backtest, Order
+
+class BuyAndHold(Agent):
+    def on_day(self, view, portfolio):
+        if "NIFTY50" in portfolio.positions:
+            return []
+        price = view.close("NIFTY50")
+        qty = int(portfolio.cash / price) if price else 0
+        return [Order("NIFTY50", "buy", qty)] if qty else []
+
+result = Backtest(BuyAndHold(), starting_cash=Decimal("100000")).run(
+    "2020-01-01", "2025-12-31"
+)
+print(result.summary())
+# 2020-01-01 → 2025-12-31 · 1486 trading days · 1 fills · ... · total +111.58% · CAGR +13.31%
+```
+
+The full SDK reference (including the point-in-time contract that makes
+backtests honest, the broker model, and common strategy patterns) lives in
+[`fairytale/AGENTS.md`](fairytale/AGENTS.md).
+
 ## Project layout
 
 ```
 quant/
 ├── README.md                  this file
-├── pyproject.toml             python deps (yfinance, pandas, plotly)
+├── pyproject.toml             python deps (yfinance, pandas, plotly, supabase, fairytale)
 ├── fetch_companies.py         yfinance → web/public/data/assets/*.json
 ├── build_manifest.py          rebuilds the asset manifest
 ├── retry_companies.py         retry failed fetches
@@ -124,6 +167,17 @@ quant/
 │   └── schema.sql             tables, views, functions, RLS policies
 ├── scripts/
 │   └── migrate_to_supabase.py JSON → Supabase REST API
+├── fairytale/                 Python SDK (importable as `fairytale`)
+│   ├── AGENTS.md              SDK reference for AI agents and humans
+│   ├── market.py              Market data access
+│   ├── as_of.py               Point-in-time view (no future leakage)
+│   ├── portfolio.py           Cash + positions bookkeeping
+│   ├── broker.py              Simulated order execution
+│   ├── agent.py               Agent base class
+│   └── backtest.py            Backtest runner + result
+├── examples/
+│   ├── buy_and_hold.py        all-in on NIFTY50 day one, hold
+│   └── momentum.py            top-N past-12M momentum, monthly rebalance
 └── web/                       Next.js app
     ├── src/
     │   ├── app/
