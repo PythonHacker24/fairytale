@@ -1,0 +1,762 @@
+% Monte Carlo Simulation in Finance — A Guided Educational Document
+% Compile with: pdflatex monte_carlo_theory.tex (twice for references)
+% Requires: amsmath, amssymb, booktabs, geometry, hyperref, xcolor, enumitem, tcolorbox
+
+\documentclass[11pt, a4paper]{article}
+
+% ── Packages ────────────────────────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=2.4cm, top=2.8cm, bottom=2.8cm]{geometry}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+
+% ── Colours ─────────────────────────────────────────────────────────────────
+\definecolor{accent}{RGB}{96, 165, 250}       % blue
+\definecolor{muted}{RGB}{148, 163, 184}        % slate-400
+\definecolor{panelbg}{RGB}{24, 28, 36}         % near-black — used in tcolorbox only
+\definecolor{warncolor}{RGB}{251, 191, 36}     % amber
+\definecolor{upcolor}{RGB}{52, 211, 153}       % emerald
+\definecolor{downcolor}{RGB}{248, 113, 113}    % red-400
+\definecolor{codetext}{RGB}{226, 232, 240}     % slate-200
+
+% ── Math shortcuts ──────────────────────────────────────────────────────────
+\newcommand{\N}{\mathcal{N}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\R}{\mathbb{R}}
+
+% ── tcolorbox styles ────────────────────────────────────────────────────────
+\tcbuselibrary{breakable, skins}
+
+\tcbset{
+  mathbox/.style={
+    colback=gray!8,
+    colframe=gray!30,
+    arc=3pt,
+    boxrule=0.5pt,
+    left=10pt, right=10pt, top=6pt, bottom=6pt,
+    fontupper=\ttfamily\small,
+    breakable
+  },
+  infobox/.style={
+    colback=accent!6,
+    colframe=accent!40,
+    arc=4pt,
+    boxrule=0.6pt,
+    left=12pt, right=12pt, top=8pt, bottom=8pt,
+    breakable
+  },
+  warnbox/.style={
+    colback=warncolor!8,
+    colframe=warncolor!50,
+    arc=4pt,
+    boxrule=0.6pt,
+    left=12pt, right=12pt, top=8pt, bottom=8pt,
+    breakable
+  },
+  procon/.style={
+    colback=gray!6,
+    colframe=gray!25,
+    arc=3pt,
+    boxrule=0.5pt,
+    left=10pt, right=10pt, top=8pt, bottom=8pt,
+    breakable
+  }
+}
+
+% ── Headers & section style ─────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{muted}{Monte Carlo Simulation in Finance}}
+\fancyhead[R]{\small\textcolor{muted}{\thepage}}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\titleformat{\section}[block]
+  {\large\bfseries}
+  {\textcolor{muted}{\small\S\thesection}\quad}
+  {0pt}
+  {}
+  [\vspace{-2pt}\textcolor{gray!60}{\hrule height 0.4pt}\vspace{4pt}]
+
+\titleformat{\subsection}[runin]
+  {\normalfont\bfseries}
+  {}
+  {0pt}
+  {}
+  [.\quad]
+
+% ── Hyperref ────────────────────────────────────────────────────────────────
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accent!70!black,
+  citecolor=accent!70!black,
+  urlcolor=accent!70!black,
+  pdftitle={Monte Carlo Simulation in Finance},
+  pdfauthor={},
+  pdfsubject={Quantitative Finance — Educational},
+}
+
+% ────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{3cm}
+  {\Large\bfseries Monte Carlo Simulation in Finance}\par
+  \vspace{0.5cm}
+  {\large A Guided Mathematical Introduction}\par
+  \vspace{1.5cm}
+  {\large From dart-throwing and $\pi$ to GBM, bootstrap, and Value-at-Risk}\par
+  \vspace{2cm}
+  \textcolor{muted}{\rule{8cm}{0.4pt}}\par
+  \vspace{1.2cm}
+  {\normalsize
+    Covering: the core idea, geometric Brownian motion, historical bootstrap,\\
+    log returns, the $\sigma^2/2$ adjustment, time-scaling of volatility,\\
+    pseudo-random number generation, fan-chart interpretation,\\
+    convergence theory, model limitations, and real-world applications.\par
+  }
+  \vfill
+  {\small\textcolor{muted}{Compiled from the interactive Monte Carlo dashboard for Nifty\,50 analysis.}}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{The Core Idea — Rolling Dice Instead of Solving Equations}
+\label{sec:core}
+
+Monte Carlo simulation takes its name from the casino in Monaco — a place synonymous with chance and randomness. The method was developed in the 1940s by \textbf{Stanislaw Ulam} and \textbf{John von Neumann} while working on the Manhattan Project to simulate neutron diffusion through fissile material. The central insight is disarmingly simple:
+
+\begin{tcolorbox}[infobox]
+\textbf{Key idea.}\quad Instead of solving a hard problem analytically, \emph{roll the dice many times and see what happens}. The distribution of outcomes across those random trials approximates the true distribution of outcomes for the original problem.
+\end{tcolorbox}
+
+For equities, the ``hard problem'' is: \emph{given what we know about a stock's past, what are the plausible futures?} No closed-form solution exists, because the future depends on countless unknowable factors — macro shocks, policy changes, earnings surprises, market sentiment. But we can:
+
+\begin{enumerate}[leftmargin=2em]
+  \item Estimate statistical properties from history (drift $\mu$, volatility $\sigma$).
+  \item Generate thousands of random future paths \emph{consistent with those properties}.
+  \item Study the \textbf{distribution} of outcomes rather than pretending we can produce a single forecast.
+\end{enumerate}
+
+A point forecast like ``the stock will be at \rupee{}1500 in a year'' implies false certainty. Monte Carlo gives the honest answer: ``There is a 50\% chance the price will be between $X$ and $Y$, a 90\% chance between $A$ and $B$, and a 5\% chance of ending below $C$.''
+
+\subsection*{Why probability distributions matter more than point forecasts}
+
+Suppose an analyst says a stock will reach \rupee{}1000 in twelve months. If the model's 90\% confidence interval is \rupee{}800–1200, that forecast is telling you something useful. If it is \rupee{}200–3000, the point estimate is nearly meaningless — the range dominates. Monte Carlo forces us to quantify and display that uncertainty explicitly.
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{A Toy Example — Estimating $\pi$ by Throwing Darts}
+\label{sec:pi}
+
+Before connecting Monte Carlo to finance, it helps to see it work on a problem where we already know the answer.
+
+\subsection*{Setup}
+
+Consider the unit square $[0,1]\times[0,1]$ in the plane. Inside it, inscribe a quarter-circle of radius 1 centred at the origin. Its area equals $\pi/4$.
+
+\begin{center}
+\begin{tabular}{ll}
+  Area of square & $= 1$ \\
+  Area of quarter-circle & $= \dfrac{\pi}{4} \approx 0.7854$ \\
+\end{tabular}
+\end{center}
+
+\subsection*{The Monte Carlo estimate}
+
+\begin{enumerate}[leftmargin=2em]
+  \item Generate $N$ random points $(x_i, y_i)$ uniformly in $[0,1]^2$.
+  \item Count how many satisfy $x_i^2 + y_i^2 \leq 1$ (i.e., lie inside the quarter-circle). Call this count $K$.
+  \item Estimate:
+  \[
+    \hat\pi \;=\; 4 \times \frac{K}{N}
+  \]
+\end{enumerate}
+
+\subsection*{Numerical results}
+
+\begin{center}
+\begin{tabular}{rrl}
+  \toprule
+  $N$ & $\hat\pi$ (typical) & Error \\
+  \midrule
+  100       & 3.08 -- 3.24 & $\sim 1.5\%$ \\
+  1\,000    & 3.10 -- 3.18 & $\sim 0.6\%$ \\
+  10\,000   & 3.138 -- 3.145 & $\sim 0.1\%$ \\
+  1\,000\,000 & 3.14155 -- 3.14165 & $\sim 0.002\%$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+The error decreases proportionally to $1/\sqrt{N}$ (see Section~\ref{sec:convergence}). This is the defining feature of Monte Carlo: \textbf{random sampling can answer questions that are hard or impossible to solve in closed form.}
+
+\begin{tcolorbox}[warnbox]
+\textbf{Historical note.}\quad Buffon's Needle (1777) was a precursor: dropping a needle on a lined floor probabilistically estimates $\pi$. Von Neumann and Ulam's 1946 innovation was pairing the idea with a digital computer and a seeded pseudo-random generator — the ``Monte Carlo'' name came from Ulam's uncle's casino habit.
+\end{tcolorbox}
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Method 1 — Geometric Brownian Motion (GBM)}
+\label{sec:gbm}
+
+GBM is the classical financial model for equity prices. It underpins Black-Scholes (1973), and despite its well-known limitations it remains the default starting point for forward simulation.
+
+\subsection*{Assumptions}
+
+\begin{center}
+\begin{tabular}{>{\bfseries}p{4.5cm} p{9.5cm}}
+  \toprule
+  Assumption & Meaning \\
+  \midrule
+  Log-normality & Daily changes in $\ln(\text{price})$ follow a normal distribution \\
+  Independence & Today's return contains no information about tomorrow's \\
+  Constant $\mu$, $\sigma$ & Expected return (drift) and volatility do not change over time \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{The stochastic differential equation}
+
+The continuous-time dynamics of stock price $S$ under GBM are:
+
+\begin{tcolorbox}[mathbox]
+\[
+  \dd S \;=\; \mu\, S\, \dd t \;+\; \sigma\, S\, \dd W_t
+\]
+\end{tcolorbox}
+
+where:
+\begin{itemize}[leftmargin=2em]
+  \item $\mu$ is the \textit{expected drift} (instantaneous rate of return).
+  \item $\sigma$ is the \textit{volatility} (standard deviation of log returns per unit time).
+  \item $W_t$ is standard \textit{Brownian motion} — the continuous-time limit of a random walk, with $W_t \sim \N(0, t)$ and independent increments.
+\end{itemize}
+
+\subsection*{Closed-form solution via Itô's lemma}
+
+To solve the SDE, apply \textbf{Itô's lemma} to $f(S) = \ln S$:
+
+\[
+  \dd(\ln S) \;=\; \left(\mu - \frac{\sigma^2}{2}\right)\dd t \;+\; \sigma\, \dd W_t
+\]
+
+Integrating from $0$ to $t$:
+
+\begin{tcolorbox}[mathbox]
+\[
+  S_t \;=\; S_0 \cdot \exp\!\left[\left(\mu - \frac{\sigma^2}{2}\right)t \;+\; \sigma\sqrt{t}\, Z\right], \qquad Z \sim \N(0,1)
+\]
+\end{tcolorbox}
+
+The $-\sigma^2/2$ correction is not an accident — it is explained in detail in Section~\ref{sec:sigma2}.
+
+\subsection*{Discrete-time simulation (one step)}
+
+In code, we advance one trading day at a time. If $r$ is the log return drawn from the calibrated distribution:
+
+\begin{tcolorbox}[mathbox]
+\[
+  S_{t+1} \;=\; S_t \cdot e^{r}, \qquad r \sim \N\!\left(\hat\mu_{\log},\; \hat\sigma^2_{\log}\right)
+\]
+\end{tcolorbox}
+
+$\hat\mu_{\log}$ and $\hat\sigma^2_{\log}$ are estimated from the asset's historical daily log returns over the selected lookback window (1Y, 3Y, or all available data).
+
+\subsection*{Example: Nifty 50}
+
+Typical calibrated parameters for Nifty 50 (all-history lookback, as at early 2025):
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Parameter & Value & Annualised equivalent \\
+  \midrule
+  $\hat\mu_{\log}$ & $+0.0005$ per day & $\approx +13\%$ per year \\
+  $\hat\sigma_{\log}$ & $0.0092$ per day & $\approx 14.6\%$ per year \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Starting from 24\,000 index points with these parameters, the GBM median after 252 trading days (one year) sits near $24{,}000 \times e^{0.0005 \times 252} \approx 27{,}100$.
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Method 2 — Historical Bootstrap}
+\label{sec:bootstrap}
+
+The bootstrap is a \textbf{non-parametric} alternative. Rather than assuming a specific distribution for returns, we \emph{resample actual historical returns with replacement}:
+
+\begin{tcolorbox}[mathbox]
+\begin{verbatim}
+for each path:
+  S[0] = S0
+  for t = 1 to daysAhead:
+    i    = uniform random integer in {1, ..., N_history}
+    r    = historical_log_returns[i]
+    S[t] = S[t-1] * exp(r)
+\end{verbatim}
+\end{tcolorbox}
+
+Each simulated path is built by randomly selecting days from history and chaining their returns in a new order.
+
+\subsection*{What the bootstrap preserves vs.\ loses}
+
+\begin{center}
+\begin{tabular}{p{5.5cm} p{8cm}}
+  \toprule
+  \textbf{Preserved} & \textbf{Lost} \\
+  \midrule
+  \textbf{Fat tails.} If a $-12\%$ day occurred historically, simulations can produce one. GBM would rarely generate such an extreme value under normality.
+  &
+  \textbf{Volatility clustering.} In reality, large moves cluster in time (the GARCH effect — see Section~\ref{sec:limitations}). Bootstrap treats each day as independent. \\[6pt]
+  \textbf{Skewness.} Equity returns are typically left-skewed (more large negative days than positive). Bootstrap inherits this shape automatically.
+  &
+  \textbf{Regime context.} A 2008 crash-day return might be sampled into an otherwise 2021-style calm path, mixing incompatible economic regimes. \\[6pt]
+  \textbf{Empirical distribution.} No parametric assumption needed — the full shape of returns, including multi-modal humps or heavy tails, is preserved.
+  &
+  \textbf{Long-range dependence.} If the asset exhibits momentum or mean-reversion at multi-week horizons, independent resampling destroys it. \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{When to use which}
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{GBM}: clean math, fast theoretical convergence, compatible with options pricing theory. Use when you want tractable, well-understood results.
+  \item \textbf{Bootstrap}: more honest about tail risk; use when you care about realistic extreme outcomes and want to avoid normality assumptions.
+  \item \textbf{In practice}: practitioners often run \emph{both} and compare the tail percentiles. Wide disagreement signals non-normality in the historical data.
+\end{itemize}
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Why Log Returns?}
+\label{sec:logreturns}
+
+This section explains why financial simulation works in $\ln(\text{price})$ space rather than price space.
+
+\subsection*{The compounding problem with simple returns}
+
+Prices are \textit{multiplicative}: returns compound over time. A gain and a loss of the same percentage do \emph{not} cancel:
+
+\begin{tcolorbox}[mathbox]
+\[
+  \$1.00 \;\times\; 1.10 \;\times\; 0.90 \;=\; \$0.99 \qquad \text{(a 1\% \emph{loss}, not break-even)}
+\]
+\end{tcolorbox}
+
+The arithmetic mean of simple returns misleads: $\frac{(+10\%) + (-10\%)}{2} = 0\%$, but the investor lost 1\%.
+
+\subsection*{Log returns are additive}
+
+Define the log return as $r_t = \ln(S_t / S_{t-1})$. Then:
+
+\begin{align*}
+  \ln(S_t) &= \ln(S_0) + \sum_{i=1}^{t} r_i \\
+  r_{+10\%} + r_{-10\%} &= \ln(1.10) + \ln(0.90) \approx +0.0953 - 0.1054 = -0.0101
+\end{align*}
+
+This $-1.01\%$ log return is exactly consistent with the $0.99$ final price — the arithmetic checks out.
+
+\begin{tcolorbox}[infobox]
+\textbf{Why this matters for simulation.}\quad When log returns are i.i.d.\ normal, multi-period sums of log returns are also normal (by the central limit theorem), and $S_t$ has a \emph{log-normal} distribution. This is the mathematical foundation of GBM and Black-Scholes.
+\end{tcolorbox}
+
+\subsection*{Key properties of log returns}
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Property & Simple returns & Log returns \\
+  \midrule
+  Time aggregation & Multiplicative (complex) & Additive (simple) \\
+  Can price go negative? & Possible (in theory) & No: $S_t = S_0 e^X > 0$ always \\
+  Statistical properties & Asymmetric tails & More symmetric; CLT applies \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{The $\sigma^2/2$ Adjustment (Jensen's Inequality)}
+\label{sec:sigma2}
+
+The exact GBM solution contains the term $\mu - \sigma^2/2$ rather than $\mu$ alone. This is not a typo.
+
+\subsection*{The convexity argument}
+
+Because $e^x$ is a \emph{convex} function, Jensen's inequality gives:
+
+\[
+  \E\!\left[e^X\right] \;>\; e^{\E[X]}
+\]
+
+If log returns have mean $\mu$ per period, then the \emph{price} grows faster than $e^{\mu t}$ — precisely because of the convexity of the exponential. The $-\sigma^2/2$ correction removes this bias so that the model is consistent: $\E[r_{\text{log}}] = \mu$.
+
+\subsection*{Concrete example}
+
+Suppose $\mu = 0.10$ and $\sigma = 0.30$ (annual). Then:
+
+\begin{center}
+\begin{tabular}{ll}
+  Arithmetic mean return & $+10.0\%$ \\
+  Geometric (compound) return & $\mu - \sigma^2/2 = 10\% - 4.5\% = +5.5\%$ \\
+\end{tabular}
+\end{center}
+
+The investor who earns $+10\%$ arithmetic on average but with $30\%$ volatility will actually \emph{compound} at only $5.5\%$ per year. This gap is the \textbf{volatility drag} — one of the most underappreciated concepts in long-term investing.
+
+\begin{tcolorbox}[warnbox]
+\textbf{Practical implication.}\quad A high-volatility asset must deliver a higher \emph{arithmetic} mean return than a low-volatility asset just to deliver the same \emph{compound} (geometric) growth rate. This is why 2$\times$ leveraged ETFs typically underperform despite targeting double the index's arithmetic return — the volatility drag is squared.
+\end{tcolorbox}
+
+\subsection*{Formula summary}
+
+\begin{tcolorbox}[mathbox]
+\begin{align*}
+  \text{Expected price (mean):}\quad & \E[S_t] = S_0\, e^{\mu t} \\
+  \text{Median price:}\quad & \text{Median}(S_t) = S_0\, e^{(\mu - \sigma^2/2)\, t} \\
+  \text{Mean} - \text{Median gap:}\quad & S_0\left(e^{\mu t} - e^{(\mu-\sigma^2/2)t}\right) = S_0\, e^{\mu t}\!\left(1 - e^{-\sigma^2 t/2}\right)
+\end{align*}
+\end{tcolorbox}
+
+The mean always exceeds the median for log-normal prices. The fan chart's median line is \emph{lower} than the arithmetic mean outcome.
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{The $\sqrt{t}$ Rule — Time Scaling of Volatility}
+\label{sec:sqrtt}
+
+\subsection*{The rule}
+
+If returns are independent and identically distributed, variances \emph{add} over time. For $n$ independent daily returns each with standard deviation $\sigma_{\text{daily}}$:
+
+\[
+  \sigma_{\text{over}\; n\;\text{days}} \;=\; \sigma_{\text{daily}} \times \sqrt{n}
+\]
+
+Volatility scales with $\sqrt{t}$, not $t$.
+
+\subsection*{Numerical table (if $\sigma_{\text{daily}} = 1\%$)}
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Horizon & Calculation & $\sigma$ \\
+  \midrule
+  1 day     & $1\% \times \sqrt{1}$   & $1.00\%$ \\
+  1 week (5d) & $1\% \times \sqrt{5}$  & $\approx 2.24\%$ \\
+  1 month (21d) & $1\% \times \sqrt{21}$ & $\approx 4.58\%$ \\
+  1 quarter (63d) & $1\% \times \sqrt{63}$ & $\approx 7.94\%$ \\
+  6 months (126d) & $1\% \times \sqrt{126}$ & $\approx 11.22\%$ \\
+  1 year (252d) & $1\% \times \sqrt{252}$ & $\approx 15.87\%$ \\
+  2 years (504d) & $1\% \times \sqrt{504}$ & $\approx 22.45\%$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Why the fan chart cone expands sub-linearly}
+
+A daily uncertainty of 1\% does not become a 252\% annual uncertainty — it becomes only $\approx 16\%$. The fan chart widens \emph{like a trumpet bell}, not like a cone expanding at 45°. This sub-linear widening is the direct geometric consequence of the $\sqrt{t}$ rule.
+
+\begin{tcolorbox}[infobox]
+\textbf{Derivation.}\quad
+If $r_1, r_2, \ldots, r_n \sim \N(0, \sigma^2)$ are i.i.d., then $R_n = \sum_{i=1}^n r_i \sim \N(0, n\sigma^2)$, so $\mathrm{std}(R_n) = \sigma\sqrt{n}$. \quad $\square$
+\end{tcolorbox}
+
+\subsection*{The annualisation convention}
+
+Market participants quote volatility in annualised terms. To convert from daily to annual:
+
+\[
+  \sigma_{\text{annual}} = \sigma_{\text{daily}} \times \sqrt{252}
+\]
+
+where 252 is the approximate number of trading days in a year (not 365). A stock with 1\% daily vol has $1\% \times \sqrt{252} \approx 15.87\%$ annual vol — the standard market implied-volatility benchmark.
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Generating Randomness — Mulberry32 and Box-Muller}
+\label{sec:rng}
+
+Two algorithmic building blocks power the simulation engine.
+
+\subsection*{1. Seeded pseudo-random number generator: Mulberry32}
+
+JavaScript's built-in \texttt{Math.random()} is not seedable, making runs irreproducible. \textbf{Mulberry32} is a compact, fast 32-bit PRNG designed for this use case.
+
+\begin{tcolorbox}[mathbox]
+\begin{verbatim}
+state = seed
+next():
+  state = (state + 0x6D2B79F5) | 0
+  t = state XOR (state >>> 15) * (1 | state)
+  t = (t + (t XOR (t >>> 7)) * (61 | t)) XOR t
+  return ((t XOR (t >>> 14)) >>> 0) / 2^32
+\end{verbatim}
+\end{tcolorbox}
+
+Each call advances the 32-bit state and returns a uniform sample in $[0, 1)$. With the same seed, the entire simulation reproduces \emph{exactly} — critical for debugging and for comparing two parameter sets fairly (same sequence of random numbers, different model inputs).
+
+\subsection*{2. Normal samples from uniform: the Box-Muller transform}
+
+The simulation needs $Z \sim \N(0,1)$ at each step. The \textbf{Box-Muller transform} (Box \& Muller, 1958) converts two independent uniform samples into two independent standard normals:
+
+\begin{tcolorbox}[mathbox]
+\begin{align*}
+  U_1, U_2 &\sim \mathrm{Uniform}(0, 1) \qquad \text{(independent)} \\[4pt]
+  Z_1 &= \sqrt{-2\ln U_1} \cdot \cos(2\pi U_2) \\
+  Z_2 &= \sqrt{-2\ln U_1} \cdot \sin(2\pi U_2)
+\end{align*}
+\end{tcolorbox}
+
+The resulting $Z_1, Z_2$ are \emph{exactly} $\N(0,1)$ — this is not an approximation. The derivation works in polar coordinates: interpret $(U_1, U_2)$ as polar angle and radius, transform to Cartesian coordinates, and the Jacobian of the transformation produces the bivariate normal density.
+
+\begin{tcolorbox}[infobox]
+\textbf{Historical note.}\quad Box and Muller's 1958 paper \emph{``A note on the generation of random normal deviates''} is two pages long and introduced what is now a standard textbook algorithm. It was one of the first practical algorithms for fast simulation on early electronic computers. The alternative — the ziggurat algorithm (1964) — is faster for very high-throughput work but less elegant.
+\end{tcolorbox}
+
+\subsection*{Scaling to the desired distribution}
+
+To draw from $\N(\mu_{\log}, \sigma^2_{\log})$:
+
+\[
+  r \;=\; \mu_{\log} + \sigma_{\log} \cdot Z, \qquad Z \sim \N(0,1)
+\]
+
+This is simply a location-scale transform: $r = \mu + \sigma Z$.
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{How to Read the Fan Chart}
+\label{sec:fanchart}
+
+The fan chart is the central visualisation output. Each element has a precise meaning.
+
+\subsection*{Elements of the chart}
+
+\begin{center}
+\begin{tabular}{>{\bfseries}p{3.8cm} p{9.5cm}}
+  \toprule
+  Element & Interpretation \\
+  \midrule
+  Outer band (5th–95th) & 90\% of simulated paths end inside this range. Under model assumptions, a path has a 5\% chance of ending below, and a 5\% chance of ending above. \\[4pt]
+  Inner band (25th–75th) & The middle 50\% of outcomes — the ``most typical'' range for a random future path. \\[4pt]
+  Median line & Exactly half the simulated paths end above this level; half end below. \\[4pt]
+  Faint sample paths & Individual random walks. None will happen exactly, but they show the \emph{texture} of possible journeys — some paths crash early, some moon, most muddle around the median. \\[4pt]
+  Dashed reference line & Starting price (today's price). Paths above this at the horizon represent gain; below represent loss. \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Why the cone always widens}
+
+Uncertainty compounds. A stock predictable over one day becomes increasingly unpredictable over a year. The model is \emph{honest about that compounding uncertainty} — which is precisely what makes it more useful than a point forecast that pretends to know where the stock will be in 12 months.
+
+\subsection*{What the fan chart is not}
+
+The outer band is not a ``maximum and minimum possible outcome''. It is model-conditional: outcomes outside the band are possible — they would just be classified as the 5\% tail events given the model's assumptions. The further out the horizon, the wider that tail becomes, and the more the model's distributional assumptions matter.
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Convergence — How Many Paths Do You Actually Need?}
+\label{sec:convergence}
+
+\subsection*{The $1/\sqrt{N}$ law}
+
+Monte Carlo estimation error falls at a rate governed by the \textbf{Central Limit Theorem}. If the true quantity of interest is $\theta$ and our Monte Carlo estimate based on $N$ paths is $\hat\theta_N$, then:
+
+\[
+  \mathrm{std}(\hat\theta_N) \;\propto\; \frac{1}{\sqrt{N}}
+\]
+
+This means:
+
+\begin{tcolorbox}[mathbox]
+\begin{tabular}{ll}
+  1\,000 paths  & baseline precision  \\
+  10\,000 paths & $\approx 3.2\times$ more precise (not 10$\times$) \\
+  100\,000 paths & $\approx 10\times$ more precise (not 100$\times$) \\
+  1\,000\,000 paths & $\approx 31.6\times$ more precise  \\
+\end{tabular}
+\end{tcolorbox}
+
+\subsection*{Practical thresholds}
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{500–1\,000 paths}: fast, good enough for rough intuition and interactive exploration.
+  \item \textbf{2\,500–5\,000 paths}: the sweet spot for visual convergence of percentile bands. The fan chart looks smooth and the tail percentiles are stable.
+  \item \textbf{10\,000+ paths}: only marginally better for presentation. The dominant source of error shifts from \emph{sampling error} to \emph{model error}.
+\end{itemize}
+
+\subsection*{Model error vs.\ sampling error}
+
+This distinction is crucial. After a few thousand paths, the simulation is accurately characterising \emph{what the model implies} about the future. What it cannot reduce with more paths is the error in the \emph{model itself}: the assumption that $\mu$ and $\sigma$ are constant, that returns are normally distributed, that the past lookback window is representative of future dynamics.
+
+\begin{tcolorbox}[warnbox]
+\textbf{Key takeaway.}\quad Running 100\,000 paths instead of 5\,000 does not tell you anything more about the \emph{future}; it tells you more precisely what an imperfect model says about it. Model specification error typically dominates sampling error by a wide margin in real applications.
+\end{tcolorbox}
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{What Monte Carlo Cannot Do}
+\label{sec:limitations}
+
+Monte Carlo is a powerful tool, but it is commonly misread and misapplied.
+
+\subsection*{Misreadings to avoid}
+
+\begin{center}
+\begin{tabular}{>{\color{downcolor}}p{6cm} >{\color{upcolor}}p{7cm}}
+  \toprule
+  \textbf{Wrong reading} & \textbf{Right reading} \\
+  \midrule
+  ``The stock will be at the median price in a year.'' &
+  ``Half of plausible model scenarios end above this; half below.'' \\[6pt]
+  ``The 95th percentile is the upper bound.'' &
+  ``Under our model's assumptions, 5\% of scenarios end above this — reality may differ, especially in tails.'' \\[6pt]
+  ``Bootstrap captures all real risk.'' &
+  ``It captures all risk \emph{if the future resembles the past}.'' \\[6pt]
+  ``More paths $\Rightarrow$ more accuracy about the future.'' &
+  ``More paths $\Rightarrow$ more accuracy about \emph{what the model implies}. The model itself may be wrong.'' \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Structural blind spots of GBM/bootstrap}
+
+\begin{enumerate}[leftmargin=2em, label=\textbf{\arabic*.}]
+  \item \textbf{Regime changes.} A calm, low-vol stock in one decade can enter a structurally different regime. Calibration on past data cannot predict this transition.
+
+  \item \textbf{Structural breaks.} Mergers, demergers (e.g., Tata Motors' commercial vehicle spin-off), accounting scandals, major regulatory changes — these produce discontinuous price moves no continuous-diffusion model can anticipate.
+
+  \item \textbf{Black swan events.} COVID (March 2020), the 2008 global financial crisis, 9/11, wars, sudden currency crises. These produce returns many standard deviations from the historical norm. Even the bootstrap can underestimate if such events are absent from the calibration window.
+
+  \item \textbf{Volatility clustering (GARCH effects).} Engle (1982) showed that financial volatility is itself time-varying and autocorrelated — large moves tend to cluster. Neither GBM (constant $\sigma$) nor the naive bootstrap (i.i.d.\ resampling) captures this. A GARCH-bootstrap hybrid is needed for realistic short-horizon tail risk.
+
+  \item \textbf{Fat tails.} Real equity return distributions have \emph{excess kurtosis} (heavier tails than normal). The GBM model systematically underprices extreme moves. Mandelbrot (1963) proposed stable distributions; Heston (1993) introduced stochastic volatility; Merton (1976) introduced jump processes — all to address this gap.
+\end{enumerate}
+
+\begin{tcolorbox}[warnbox]
+\textbf{The fundamental confusion.}\quad The biggest pitfall in practice is confusing ``what the model says could happen'' with ``what could actually happen.'' GBM-derived $5\%$~probability of loss is not a real-world $5\%$~probability — it is a model-conditional one. Treat all Monte Carlo outputs as \emph{scenario analysis}, not probability prophecy.
+\end{tcolorbox}
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Where Monte Carlo Lives in Real Finance}
+\label{sec:applications}
+
+Monte Carlo is not just a teaching tool. It is the computational backbone of several major areas in quantitative finance.
+
+\subsection*{Exotic options pricing}
+
+Black-Scholes has closed-form solutions only for European vanilla options. For \emph{path-dependent} options — Asian options (payoff depends on average price), barrier options (knock-in/knock-out), lookback options (payoff depends on maximum or minimum) — there is no formula. Monte Carlo is the standard method:
+\begin{enumerate}[leftmargin=2em]
+  \item Simulate $N$ price paths to the expiry date.
+  \item Compute the option payoff for each path.
+  \item Average the payoffs and discount at the risk-free rate.
+\end{enumerate}
+
+\subsection*{Value at Risk (VaR)}
+
+\begin{quote}
+\emph{``What is the worst loss at 95\% confidence over one day?''}
+\end{quote}
+Answer: the 5th percentile of the simulated next-day P\&L distribution. Monte Carlo VaR is more flexible than the parametric (Gaussian) or historical-simulation variants, because it can incorporate full portfolio non-linearities from options positions.
+
+\subsection*{Portfolio stress testing and CVaR}
+
+Regulators (Basel III, Solvency II) require banks and insurers to estimate \emph{Expected Shortfall} (also called CVaR or conditional VaR) — the average loss in the worst $\alpha\%$ of scenarios. Monte Carlo makes this tractable for multi-asset portfolios where correlations are non-linear under stress.
+
+\subsection*{Retirement planning (``probability of ruin'')}
+
+\begin{quote}
+\emph{``Given my portfolio and planned withdrawals, what is the probability I run out of money before age 90?''}
+\end{quote}
+Monte Carlo simulates thousands of possible return sequences over 30+ years and counts the fraction of paths where the portfolio hits zero. This is now standard practice in financial planning software (e.g., Vanguard's Retirement Income Calculator).
+
+\subsection*{Real options valuation}
+
+In corporate finance, a company considering building a factory has the \emph{option to delay} if conditions worsen. Standard NPV ignores this flexibility. Monte Carlo-based real-options analysis values the option to expand, delay, abandon, or switch — producing a richer valuation than deterministic DCF models.
+
+\subsection*{Portfolio optimisation under non-normal returns}
+
+Markowitz mean-variance optimisation assumes normal returns, which concentrates tails. Monte Carlo simulation of asset correlations under stress scenarios (not just under their historical mean behaviour) is used to construct portfolios that are robust to tail events — so-called \emph{risk-based} or \emph{CVaR-minimising} portfolios.
+
+% ────────────────────────────────────────────────────────────────────────────
+\section{Further Reading}
+\label{sec:reading}
+
+The following references span introductory to advanced, ordered roughly by accessibility.
+
+\begin{thebibliography}{9}
+
+\bibitem{hull}
+  Hull, J.C. (2022).
+  \emph{Options, Futures, and Other Derivatives} (11th ed.).
+  Pearson.
+  \\
+  \textit{The standard textbook. Chapters 13 (GBM and risk-neutral pricing), 21 (Monte Carlo for derivatives), and 22 (value at risk) are directly relevant.}
+
+\bibitem{glasserman}
+  Glasserman, P. (2004).
+  \emph{Monte Carlo Methods in Financial Engineering}.
+  Springer.
+  \\
+  \textit{The definitive advanced reference. Covers variance reduction (antithetic variates, control variates, importance sampling), quasi-Monte Carlo, and Greeks estimation via simulation.}
+
+\bibitem{taleb}
+  Taleb, N.N. (2007).
+  \emph{The Black Swan: The Impact of the Highly Improbable}.
+  Random House.
+  \\
+  \textit{A compelling argument for why GBM-style models systematically understate tail risk. Essential perspective alongside the technical material.}
+
+\bibitem{talebbr}
+  Taleb, N.N. (1997).
+  \emph{Dynamic Hedging: Managing Vanilla and Exotic Options}.
+  Wiley.
+  \\
+  \textit{Practical trader's perspective on why continuous-time models fail in real option markets.}
+
+\bibitem{engle}
+  Engle, R.F. (1982).
+  Autoregressive Conditional Heteroscedasticity with Estimates of the Variance of United Kingdom Inflation.
+  \emph{Econometrica}, 50(4), 987--1007.
+  \\
+  \textit{The original GARCH paper introducing volatility clustering. Engle received the 2003 Nobel Prize in Economics partly for this work.}
+
+\bibitem{boxmuller}
+  Box, G.E.P. \& Muller, M.E. (1958).
+  A Note on the Generation of Random Normal Deviates.
+  \emph{The Annals of Mathematical Statistics}, 29(2), 610--611.
+  \\
+  \textit{Two-page paper introducing the transform used in our simulation engine.}
+
+\bibitem{mandelbrot}
+  Mandelbrot, B. (1963).
+  The Variation of Certain Speculative Prices.
+  \emph{Journal of Business}, 36(4), 394--419.
+  \\
+  \textit{First rigorous demonstration that equity returns have fat tails incompatible with normality.}
+
+\bibitem{heston}
+  Heston, S.L. (1993).
+  A Closed-Form Solution for Options with Stochastic Volatility with Applications to Bond and Currency Options.
+  \emph{Review of Financial Studies}, 6(2), 327--343.
+  \\
+  \textit{Introduction of the stochastic-volatility model that replaced Black-Scholes in professional practice.}
+
+\bibitem{merton}
+  Merton, R.C. (1976).
+  Option Pricing When Underlying Stock Returns Are Discontinuous.
+  \emph{Journal of Financial Economics}, 3(1--2), 125--144.
+  \\
+  \textit{Introduction of jump-diffusion processes to capture sudden large moves — a direct extension of GBM.}
+
+\end{thebibliography}
+
+\end{document}

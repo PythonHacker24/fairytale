@@ -1,0 +1,15 @@
+# env files (contain Supabase keys)
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# misc
+.DS_Store
+.gstack/
